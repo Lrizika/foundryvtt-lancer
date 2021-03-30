@@ -77,7 +77,7 @@ async function lock_all() {
 // Clear all packs
 export async function clear_all(): Promise<void> {
   // TODO - unlock and lock compendiums
-  // await unlock_all();
+  await unlock_all();
   for (let p of Object.values(EntryType)) {
     let pack: Compendium | undefined;
     pack = game.packs.get(`world.${p}`);
@@ -90,8 +90,7 @@ export async function clear_all(): Promise<void> {
       });
     }
   }
-  // await lock_all();
-
+  await lock_all();
   return Promise.resolve();
 }
 
@@ -117,7 +116,9 @@ async function update_entity<T extends EntryType>(
   // Setup the actual entity data structure
   const entityData: any = {
     name: compendium_name,
-    img: TypeIcon(type), // TODO: figure out a better method of transferring extra fields, flags, etc. An "orig" will only half cut it, as some of our fields (name, img, token) are parent to the reg_entry
+    img: TypeIcon(type), // TODO: figure out a better method of transferring extra fields, flags, etc.
+                             An "orig" will only half cut it, as some of our fields (name, img, token)
+                             are parent to the reg_entry
     type: type,
     flags: {},
     data: new_data,
@@ -140,27 +141,35 @@ async function update_entity<T extends EntryType>(
 */
 
 // Transfers a category. Returns a list of all the insinuated items
-async function transfer_cat<T extends EntryType>(type: T, from: Registry, to: Registry, ctx: OpCtx): Promise<RegEntry<T>[]> {
-    // Insinuate each item in the cat
-    let from_cat = from.get_cat(type);
-    let promises: Array<Promise<RegEntry<T>>> = [];
+async function transfer_cat<T extends EntryType>(
+  type: T,
+  from: Registry,
+  to: Registry,
+  ctx: OpCtx
+): Promise<RegEntry<T>[]> {
+  // Insinuate each item in the cat
+  let from_cat = from.get_cat(type);
+  let promises: Array<Promise<RegEntry<T>>> = [];
 
-    for (let item of await from_cat.list_live(ctx)) {
-      // Do the deed
-      let prom = (item.insinuate(to) as Promise<any>).then(insinuated => {
-        console.log(`Import | Added ${type} ${item.Name}`);
-        return insinuated;
-      });
-      promises.push(prom);
-    }
-    return Promise.all(promises);
+  for (let item of await from_cat.list_live(ctx)) {
+    // Do the deed
+    let prom = (item.insinuate(to) as Promise<any>).then(insinuated => {
+      console.log(`Import | Added ${type} ${item.Name}`, insinuated);
+      return insinuated;
+    });
+    promises.push(prom);
+  }
+  return Promise.all(promises);
 }
 
-export async function import_cp(cp: IContentPack, progress_callback?: (done: number, out_of: number) => void): Promise<void> {
-  // await unlock_all(); // TODO: re-enable i guess?
+export async function import_cp(
+  cp: IContentPack,
+  progress_callback?: (done: number, out_of: number) => void
+): Promise<void> {
+  await unlock_all();
 
   // Stub in a progress callback so we don't have to null check it all the time
-  if(!progress_callback) {
+  if (!progress_callback) {
     progress_callback = (a, b) => {};
   }
 
@@ -168,20 +177,22 @@ export async function import_cp(cp: IContentPack, progress_callback?: (done: num
   let env = new RegEnv();
   let tmp_lcp_reg = new StaticReg(env);
 
-  // Name it compendium so that refs will (mostly) carry through properly. Id's will still be borked but fallback mmid's should handle that
+  // Name it compendium so that refs will (mostly) carry through properly. Id's will still be borked but
+  // fallback mmid's should handle that
   tmp_lcp_reg.set_name("compendium|compendium");
   await funcs.intake_pack(cp, tmp_lcp_reg);
 
   // Count the total items in the reg
   let total_items = 0;
-  for(let type of Object.values(EntryType)) {
+  for (let type of Object.values(EntryType)) {
     let cat = tmp_lcp_reg.get_cat(type);
     total_items += (await cat.raw_map()).size;
   }
 
   // Insinuate data to the actual foundry reg
   // We want to do globals first
-  // We only want to do "top level features" - so no deployables, etc that would be included in a frame/weapon/whatever (as they will be insinuated naturally)
+  // We only want to do "top level features" - so no deployables, etc that would be included in a
+  // frame/weapon/whatever (as they will be insinuated naturally)
   let comp_reg = new ImportUtilityReg();
   await comp_reg.init();
   let dest_ctx = new OpCtx();
@@ -189,9 +200,16 @@ export async function import_cp(cp: IContentPack, progress_callback?: (done: num
   let transmit_count = 0;
 
   // Do globals
-  transmit_count += await transfer_cat(EntryType.MANUFACTURER,  tmp_lcp_reg, comp_reg, dest_ctx).then(l => l.length);
+  transmit_count += await transfer_cat(
+    EntryType.MANUFACTURER,
+    tmp_lcp_reg,
+    comp_reg,
+    dest_ctx
+  ).then(l => l.length);
   progress_callback(transmit_count, total_items + comp_reg.to_kill_count());
-  transmit_count += await transfer_cat(EntryType.TAG,  tmp_lcp_reg, comp_reg, dest_ctx).then(l => l.length);
+  transmit_count += await transfer_cat(EntryType.TAG, tmp_lcp_reg, comp_reg, dest_ctx).then(
+    l => l.length
+  );
   progress_callback(transmit_count, total_items + comp_reg.to_kill_count());
 
   let errata: EntryType[] = [EntryType.DEPLOYABLE, EntryType.TAG, EntryType.MANUFACTURER];
@@ -200,7 +218,9 @@ export async function import_cp(cp: IContentPack, progress_callback?: (done: num
   for (let type of Object.values(EntryType)) {
     // Skip if subtype
     if (!errata.includes(type)) {
-      transmit_count += await transfer_cat(type, tmp_lcp_reg, comp_reg, dest_ctx).then(l => l.length);
+      transmit_count += await transfer_cat(type, tmp_lcp_reg, comp_reg, dest_ctx).then(
+        l => l.length
+      );
       progress_callback(transmit_count, total_items + comp_reg.to_kill_count());
     }
   }
@@ -209,12 +229,15 @@ export async function import_cp(cp: IContentPack, progress_callback?: (done: num
   await comp_reg.execute_order_66();
   progress_callback(transmit_count, total_items + comp_reg.to_kill_count());
 
-  // await lock_all();
+  // Set default image on each item
+  for (let type of Object.values(EntryType)) {
+  }
+
+  await lock_all();
 }
 
 // This handles name-uniqueness, and destroys and existing entries with unique names
 // It also handles migration of Manufacturers
-
 // This is accomplished by tracking all items by name at the start of our import operations
 // If any duplicates are encountered, those entries are marked for death, and deleted at the end of the process
 class ImportUtilityReg extends FoundryReg {
@@ -231,7 +254,7 @@ class ImportUtilityReg extends FoundryReg {
   constructor() {
     super({
       actor_source: "compendium",
-      item_source: ["compendium", null]
+      item_source: ["compendium", null],
     });
   }
 
@@ -244,7 +267,7 @@ class ImportUtilityReg extends FoundryReg {
       // Build our orig object map
       let existing = await this.get_cat(type).list_live(ctx);
       let type_map = new Map<string, RegEntry<any>>();
-      for(let e of existing) {
+      for (let e of existing) {
         type_map.set(e.Name, e);
       }
       this.orig_item_lookup.set(type, type_map);
@@ -253,32 +276,31 @@ class ImportUtilityReg extends FoundryReg {
       this.deletion_targets.set(type, []);
 
       // Save manufacturers and templates separately. Need these for patching later
-      if(type == EntryType.MANUFACTURER) {
-        for(let m of existing as Manufacturer[]) {
+      if (type == EntryType.MANUFACTURER) {
+        for (let m of existing as Manufacturer[]) {
           this.replacement_manufacturers.set(m.ID, m);
         }
-      } else if(type == EntryType.TAG) {
-        for(let t of existing as TagTemplate[]) {
+      } else if (type == EntryType.TAG) {
+        for (let t of existing as TagTemplate[]) {
           this.replacement_tag_templates.set(t.ID, t);
         }
       }
     }
   }
 
-
   // We use a hook to keep track of the imported names, as well as new tags/manufacturers
   async hook_post_insinuate<T extends EntryType>(record: InsinuationRecord<T>) {
     // Check if we need to kill anyone
     let orig = this.orig_item_lookup.get(record.type)?.get(record.new_item.Name);
-    if(orig) {
+    if (orig) {
       this.deletion_targets.get(record.type)?.push(orig);
     }
 
     // Track newly added manufacturers/tags
-    if(record.new_item.Type === EntryType.MANUFACTURER) {
+    if (record.new_item.Type === EntryType.MANUFACTURER) {
       let man = record.new_item as Manufacturer;
       this.replacement_manufacturers.set(man.ID, man);
-    } else if(record.new_item.Type === EntryType.TAG) {
+    } else if (record.new_item.Type === EntryType.TAG) {
       let tag = record.new_item as TagTemplate;
       this.replacement_tag_templates.set(tag.ID, tag);
     }
@@ -291,26 +313,30 @@ class ImportUtilityReg extends FoundryReg {
 
     // Hot-wire our manufacturer/source
     let man = rp.Manufacturer ?? rp.Source;
-    if(man) {
+    if (man) {
       // Because these aren't insinuated as children, this is a leftover ref from the static reg that is about to go out of scope)
       // So, in this hook, we slot them in with existing/better data!
 
       // Find a better replacement. Get yourself a new man
       let existing_man = this.replacement_manufacturers.get(man.ID);
-      if(existing_man && rp.Manufacturer) {
+      if (existing_man && rp.Manufacturer) {
         rp.Manufacturer = existing_man;
       }
-      if(existing_man && rp.Source) {
+      if (existing_man && rp.Source) {
         rp.Source = existing_man;
       }
     }
 
     // Hot-wire our tags
-    for(let in_tag of [...(rp.Tags ?? []), ...(rp.AddedTags ?? []), ...(rp.Profiles?.flatMap((p: MechWeaponProfile) => p.Tags) ?? [])] as TagInstance[]) {
+    for (let in_tag of [
+      ...(rp.Tags ?? []),
+      ...(rp.AddedTags ?? []),
+      ...(rp.Profiles?.flatMap((p: MechWeaponProfile) => p.Tags) ?? []),
+    ] as TagInstance[]) {
       // Same shebang
       let existing_tag = this.replacement_tag_templates.get(in_tag.Tag.ID);
 
-      if(existing_tag) {
+      if (existing_tag) {
         in_tag.Tag = existing_tag;
       }
     }
@@ -318,11 +344,11 @@ class ImportUtilityReg extends FoundryReg {
 
   // Kill all things which we have just name-duplicated. Keep the new stuff over old stuff
   async execute_order_66() {
-    for(let type of Object.values(EntryType)) {
+    for (let type of Object.values(EntryType)) {
       let to_delete = this.deletion_targets.get(type)!;
 
       // TODO: bulk operations
-      for(let td of to_delete) {
+      for (let td of to_delete) {
         td.destroy_entry();
       }
 
@@ -334,7 +360,7 @@ class ImportUtilityReg extends FoundryReg {
   // Used for progress bar. Total of things we need to delete
   to_kill_count(): number {
     let total = 0;
-    for(let v of this.deletion_targets.values()) {
+    for (let v of this.deletion_targets.values()) {
       total += v.length;
     }
     return total;
