@@ -79,6 +79,7 @@ import {
   overcharge_button,
   stat_edit_card,
   stat_edit_card_max,
+  stat_rollable_card,
   stat_view_card,
 } from "./module/helpers/actor";
 import { HelperOptions } from "handlebars";
@@ -89,7 +90,7 @@ import {
   mm_ref_list_append_slot,
   editable_mm_ref_list_item_native,
 } from "./module/helpers/refs";
-import { mech_loadout, pilot_slot } from "./module/helpers/loadout";
+import { mech_loadout, pilot_slot, frame_refview } from './module/helpers/loadout';
 
 const lp = LANCER.log_prefix;
 
@@ -123,6 +124,7 @@ Hooks.once("init", async function () {
     prepareOverchargeMacro: macros.prepareOverchargeMacro,
     prepareOverheatMacro: macros.prepareOverheatMacro,
     prepareStructureMacro: macros.prepareStructureMacro,
+    prepareActivationMacro: macros.prepareActivationMacro,
     migrations: migrations,
 
     // For whitespines testing /('o')/
@@ -313,6 +315,7 @@ Hooks.once("init", async function () {
   Handlebars.registerHelper("compact-stat-edit", compact_stat_edit);
   Handlebars.registerHelper("compact-stat-view", compact_stat_view);
   Handlebars.registerHelper("stat-view-card", stat_view_card);
+  Handlebars.registerHelper("stat-rollable-card", stat_rollable_card);
   Handlebars.registerHelper("stat-edit-card", stat_edit_card);
   Handlebars.registerHelper("stat-edit-max-card", stat_edit_card_max);
   Handlebars.registerHelper("clicker-stat-card", clicker_stat_card);
@@ -419,6 +422,7 @@ Hooks.once("init", async function () {
   // ------------------------------------------------------------------------
   // Mech components
   Handlebars.registerHelper("mech-loadout", mech_loadout);
+  Handlebars.registerHelper("mech-frame", frame_refview);
 
   // ------------------------------------------------------------------------
   // NPC components
@@ -468,6 +472,11 @@ Hooks.on("renderSidebarTab", async (app: Application, html: HTMLElement) => {
   addLCPManager(app, html);
 });
 
+// For the settings tab
+Hooks.on("renderSettings", async (app: Application, html: HTMLElement) => {
+  addSettingsButtons(app, html);
+});
+
 // Attack function to overkill reroll button
 Hooks.on("renderChatMessage", async (cm: ChatMessage, html: any, data: any) => {
   const overkill = html[0].getElementsByClassName("overkill-reroll");
@@ -500,114 +509,7 @@ Hooks.on("renderChatMessage", async (cm: ChatMessage, html: any, data: any) => {
 });
 
 Hooks.on("hotbarDrop", (_bar: any, data: any, slot: number) => {
-  // We set an associated command & title based off the type
-  // Everything else gets handled elsewhere
-
-  let command = "";
-  let title = "";
-  let img = "systems/lancer/assets/icons/macro-icons/d20-framed.svg";
-
-  console.log(`${lp} Data dropped on hotbar:`, data);
-
-  // TODO: Figure out if I am really going down this route and, if so, switch to a switch
-  if (data.type === "actor") {
-    command = `
-      const a = game.actors.get('${data.actorId}');
-      if (a) {
-        game.lancer.prepareStatMacro('${data.actorId}', "${data.dataPath}");
-      } else {
-        ui.notifications.error("Error rolling macro");
-      }`;
-    title = data.title;
-  } else if (data.type === "Item") {
-    command = `game.lancer.prepareItemMacro("${data.actorId}", "${data.data._id}");`;
-    // Talent are the only ones (I think??) that we need to name specially
-    if (data.data.type === EntryType.TALENT) {
-      command = `game.lancer.prepareItemMacro("${data.actorId}", "${data.itemId}", {rank: ${data.rank}});`;
-      title = data.title;
-      img = `systems/lancer/assets/icons/macro-icons/talent.svg`;
-    } else {
-      title = data.data.name;
-    }
-    // Pick the image for the hotbar
-    switch (data.data.type) {
-      case EntryType.SKILL:
-        img = `systems/lancer/assets/icons/macro-icons/skill.svg`;
-        break;
-      case EntryType.TALENT:
-        img = `systems/lancer/assets/icons/macro-icons/talent.svg`;
-        break;
-      case EntryType.CORE_BONUS:
-        img = `systems/lancer/assets/icons/macro-icons/corebonus.svg`;
-        break;
-      case EntryType.PILOT_GEAR:
-        img = `systems/lancer/assets/icons/macro-icons/generic_item.svg`;
-        break;
-      case EntryType.PILOT_WEAPON:
-      case EntryType.MECH_WEAPON:
-        img = `systems/lancer/assets/icons/macro-icons/mech_weapon.svg`;
-        break;
-      case EntryType.MECH_SYSTEM:
-        img = `systems/lancer/assets/icons/macro-icons/mech_system.svg`;
-        break;
-      case EntryType.NPC_FEATURE:
-        switch (data.data.data.feature_type) {
-          case NpcFeatureType.Reaction:
-            img = `systems/lancer/assets/icons/macro-icons/reaction.svg`;
-            break;
-          case NpcFeatureType.System:
-            img = `systems/lancer/assets/icons/macro-icons/mech_system.svg`;
-            break;
-          case NpcFeatureType.Trait:
-            img = `systems/lancer/assets/icons/macro-icons/trait.svg`;
-            break;
-          case NpcFeatureType.Tech:
-            img = `systems/lancer/assets/icons/macro-icons/tech_quick.svg`;
-            break;
-          case NpcFeatureType.Weapon:
-            img = `systems/lancer/assets/icons/macro-icons/mech_weapon.svg`;
-            break;
-        }
-        break;
-    }
-  } else if (data.type === "Text") {
-    title = data.title;
-    command = `game.lancer.prepareTextMacro("${data.actorId}", "${data.title}", {rank: ${data.description}})`;
-  } else if (data.type === "Core-Active") {
-    title = data.title;
-    command = `game.lancer.prepareCoreActiveMacro("${data.actorId}")`;
-    img = `systems/lancer/assets/icons/macro-icons/corebonus.svg`;
-  } else if (data.type === "Core-Passive") {
-    title = data.title;
-    command = `game.lancer.prepareCorePassiveMacro("${data.actorId}")`;
-    img = `systems/lancer/assets/icons/macro-icons/corebonus.svg`;
-  } else if (data.type === "overcharge") {
-    title = data.title;
-    command = `game.lancer.prepareOverchargeMacro("${data.actorId}")`;
-    img = `systems/lancer/assets/icons/macro-icons/overcharge.svg`;
-  } else {
-    // Let's not error or anything, since it's possible to accidentally drop stuff pretty easily
-    return;
-  }
-
-  // Until we properly register commands as something macros can have...
-  // @ts-ignore
-  let macro = game.macros.entities.find(
-    (m: Macro) => m.name === title && (m.data as any).command === command
-  );
-  if (!macro) {
-    Macro.create(
-      {
-        command,
-        name: title,
-        type: "script",
-        img: img,
-      },
-      { displaySheet: false }
-    ).then(macro => game.user.assignHotbarMacro(macro as Macro, slot));
-  } else {
-    game.user.assignHotbarMacro(macro, slot).then();
-  }
+  macros.onHotbarDrop(_bar,data,slot);
 });
 
 // Make derived fields properly update their intended origin target
@@ -633,6 +535,13 @@ Hooks.on("modifyTokenAttribute", (_: any, data: any) => {
 async function versionCheck() {
   // Determine whether a system migration is required and feasible
   const currentVersion = game.settings.get(LANCER.sys_name, LANCER.setting_migration);
+
+  // If it's 0 then it's a fresh install
+  if (currentVersion === "0") {
+    await game.settings.set(LANCER.sys_name, LANCER.setting_migration, game.system.data.version);
+    return;
+  }
+
   // Modify these constants to set which Lancer version numbers need and permit migration.
   const NEEDS_MIGRATION_VERSION = "0.1.7";
   const COMPATIBLE_MIGRATION_VERSION = "0.1.6";
@@ -682,4 +591,88 @@ async function versionCheck() {
       );
     }
   }
+}
+
+async function showChangelog() {
+  // Show welcome message if not hidden.
+  if (!game.settings.get(LANCER.sys_name, LANCER.setting_welcome)) {
+    let renderChangelog = (changelog: string) => {
+      new Dialog(
+        {
+          title: `Welcome to LANCER v${game.system.data.version}`,
+          content: WELCOME(changelog),
+          buttons: {
+            dont_show: {
+              label: "Do Not Show Again",
+              callback: async () => {
+                await game.settings.set(LANCER.sys_name, LANCER.setting_welcome, true);
+              },
+            },
+            close: {
+              label: "Close",
+            },
+          },
+          default: "Close",
+        },
+        {
+          width: 700,
+        }
+      ).render(true);
+    };
+
+    // Get an automatic changelog for our version
+    let req = $.get(
+      `https://raw.githubusercontent.com/Eranziel/foundryvtt-lancer/v${game.system.data.version}/CHANGELOG.md`
+    );
+    req.done((data, status) => {
+      // Regex magic to only grab the first 25 lines
+      let r = /(?:[^\n]*\n){25}/;
+      let trimmedChangelog = data.match(r)[0];
+
+      // Grab the position of the last H1 and trim to that to ensure we split along version lines
+      // But also set a min so we're keeping at least one version
+      let lastH1Pos = trimmedChangelog.lastIndexOf("\n# ");
+      if (lastH1Pos < 20) lastH1Pos = trimmedChangelog.length;
+
+      trimmedChangelog = trimmedChangelog.substring(0, lastH1Pos);
+
+      let changelog = marked(trimmedChangelog);
+
+      renderChangelog(changelog);
+    });
+
+    req.fail((data, status) => {
+      let errorText = `<h2>Error retrieving changelog</h2>`;
+
+      renderChangelog(errorText);
+    });
+  }
+}
+
+function addSettingsButtons(app: Application, html: HTMLElement) {
+  const faqButton = $(`<button id="triggler-form" data-action="triggler">
+            <i class="fas fa-robot"></i>LANCER Help
+        </button>`);
+
+  $(html).find("#settings-documentation").append(faqButton);
+    
+  faqButton.click(async ev => {
+    let helpContent = await renderTemplate("systems/lancer/templates/window/lancerHelp.html",{});
+
+    new Dialog(
+      {
+        title: `LANCER Help`,
+        content: helpContent,
+        buttons: {
+          close: {
+            label: "Close",
+          },
+        },
+        default: "Close",
+      },
+      {
+        width: 600,
+      }
+    ).render(true);
+  })
 }

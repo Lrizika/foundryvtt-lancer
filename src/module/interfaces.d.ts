@@ -83,6 +83,7 @@ declare interface LancerStatMacroData {
 }
 
 declare interface LancerAttackMacroData {
+  item_id: string | undefined;
   title: string;
   grit: number;
   acc: number;
@@ -98,6 +99,15 @@ declare interface LancerTechMacroData {
   t_atk: number;
   acc: number;
   effect: string;
+  tags: TagDataShort[];
+}
+
+declare interface LancerActionMacroData {
+  title: string;
+  t_atk: number;
+  acc: number;
+  actionName: string;
+  detail: string;
   tags: TagDataShort[];
 }
 
@@ -127,4 +137,10 @@ declare interface LancerTextMacroData {
 declare interface LancerOverchargeMacroData {
   level: number;
   roll: Roll;
+}
+
+declare interface LancerMacroData {
+  command: string;
+  iconPath?: string;
+  title: string;
 }
