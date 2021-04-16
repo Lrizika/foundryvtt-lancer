@@ -27,7 +27,7 @@ import { WeaponRangeTemplate } from "./module/pixi/weapon-range-template";
 
 // Import helpers
 import { preloadTemplates } from "./module/preloadTemplates";
-import { registerSettings } from "./module/settings";
+import { registerSettings, updateTheme } from "./module/settings";
 import { compact_tag_list } from "./module/helpers/tags";
 import * as migrations from "./module/migration";
 import { addLCPManager } from "./module/apps/lcpManager";
@@ -438,6 +438,9 @@ export const system_ready: Promise<void> = new Promise(success => {
   Hooks.once("ready", async function () {
     await versionCheck();
 
+    // Set the theme to whatever is in the settings
+    updateTheme(game.settings.get(LANCER.sys_name, LANCER.setting_theme));
+
     // Show welcome message if not hidden.
     if (!game.settings.get(LANCER.sys_name, LANCER.setting_welcome)) {
       new Dialog({
@@ -655,7 +658,7 @@ function addSettingsButtons(app: Application, html: HTMLElement) {
         </button>`);
 
   $(html).find("#settings-documentation").append(faqButton);
-    
+
   faqButton.click(async ev => {
     let helpContent = await renderTemplate("systems/lancer/templates/window/lancerHelp.html",{});
 
