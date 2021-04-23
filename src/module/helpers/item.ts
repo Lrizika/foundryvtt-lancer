@@ -29,6 +29,7 @@ import {
   Deployable,
   MechSystem,
   ActivationType,
+  WeaponMod,
 } from "machine-mind";
 import { MechWeapon, TagInstance } from 'machine-mind';
 import { BonusEditDialog } from "../apps/bonus-editor";
@@ -59,6 +60,7 @@ import { ref_commons, ref_params } from "./refs";
 import { ActivationOptions, ChipIcons } from "../enums";
 import { LancerMacroData } from "../interfaces";
 import { encodeMacroData } from '../macros';
+import { is_loading } from "machine-mind/dist/classes/mech/EquipUtil";
 
 /**
  * Handlebars helper for weapon size selector
@@ -486,7 +488,14 @@ export function pilot_weapon_refview(weapon_path: string, helper: HelperOptions)
       </div>`;
   }
 
+
+
   let weapon = weapon_!;
+
+  let loading = "";
+  // Generate loading segment as needed
+  if(is_loading(weapon)) loading = loading_indicator(weapon.Loaded,weapon_path);
+
   return `<div class="valid ${
     EntryType.PILOT_WEAPON
   } ref drop-settable card clipped pilot-weapon-compact item macroable"
@@ -500,10 +509,13 @@ export function pilot_weapon_refview(weapon_path: string, helper: HelperOptions)
       <div class="flexrow">
         <a class="flexrow roll-attack" style="max-width: min-content;">
           <i class="fas fa-dice-d20 i--sm i--dark"></i>
+          
         </a>
         ${show_range_array(weapon.Range, helper)}
         <hr class="vsep">
         ${show_damage_array(weapon.Damage, helper)}
+        <!-- Loading toggle, if we are loading-->
+        ${inc_if(`<hr class="vsep"> ${loading}`, loading)}
       </div>
 
       ${compact_tag_list(weapon_path + ".Tags", weapon.Tags, false)}
@@ -577,6 +589,10 @@ export function mech_weapon_refview(
   // Fetch the item(s)
   let weapon_: MechWeapon | null = resolve_helper_dotpath(options, weapon_path);
   let mech_: Mech | null = resolve_helper_dotpath(options, mech_path);
+  let mod_path = weapon_path.substr(0,weapon_path.lastIndexOf(".")) + ".Mod";
+  let mod: WeaponMod | null = resolve_helper_dotpath(options,mod_path);
+  let mod_text: string | undefined;
+
 
   // Generate commons
   let cd = ref_commons(weapon_);
@@ -584,12 +600,24 @@ export function mech_weapon_refview(
   if (!cd) {
     // Make an empty ref. Note that it still has path stuff if we are going to be dropping things here
     return `
-      <div class="${EntryType.MECH_WEAPON} ref drop-settable card flexrow" 
+      <div class=" ${EntryType.MECH_WEAPON} ref drop-settable card flexrow" 
                         data-path="${weapon_path}" 
                         data-type="${EntryType.MECH_WEAPON}">
         <img class="ref-icon" src="${TypeIcon(EntryType.MECH_WEAPON)}"></img>
         <span class="major">Insert ${size ? size : "any"} weapon</span>
       </div>`;
+  }
+
+  let cd_mod = ref_commons(mod);
+
+  if(cd_mod && mod) {
+    mod_text = `
+    <div class="valid item weapon-mod-addon flexrow clipped-bot ref ${EntryType.WEAPON_MOD}"
+        ${ref_params(cd_mod.ref, weapon_path)}>
+      <i class="cci cci-weaponmod i--m i--light"> </i>
+      <span>${mod.Name}</span>
+      <a style="flex-grow: unset;margin-right: 1em" class="gen-control i--light" data-action="null" data-path="${mod_path}"><i class="fas fa-trash"></i></a>
+    </div>`
   }
 
   // Assert not null
@@ -607,13 +635,7 @@ export function mech_weapon_refview(
 
   // Generate loading segment as needed
   let loading = "";
-  if (weapon.IsLoading) {
-    let loading_icon = `mdi mdi-hexagon-slice-${weapon.Loaded ? 6 : 0}`;
-    loading = `<span> 
-                LOADED: 
-                <a class="gen-control" data-action="set" data-set-value="(bool)${!weapon.Loaded}" data-path="${weapon_path}.Loaded"><i class="${loading_icon}"></i></a>
-                </span>`;
-  }
+  if(weapon.IsLoading) loading = loading_indicator(weapon.Loaded,weapon_path);
 
   // Generate effects
   let effect = profile.Effect ? effect_box("Effect", profile.Effect) : "";
@@ -622,40 +644,50 @@ export function mech_weapon_refview(
   let on_crit = profile.OnCrit ? effect_box("On Crit", profile.OnCrit) : "";
 
   return `
-  <div class="valid ${
-    EntryType.MECH_WEAPON
-  } ref drop-settable flexcol clipped lancer-weapon-container macroable item"
-                ${ref_params(cd.ref, weapon_path)}
-                style="max-height: fit-content;">
-    <div class="lancer-header">
-      <i class="cci cci-weapon i--m i--light"> </i>
-      <span class="minor">${
-        weapon.Name
-      } // ${weapon.Size.toUpperCase()} ${weapon.SelectedProfile.WepType.toUpperCase()}</span>
-      <a class="gen-control i--light" data-action="null" data-path="${weapon_path}"><i class="fas fa-trash"></i></a>
-    </div> 
-    <div class="lancer-body">
-      <div class="flexrow" style="text-align: left; white-space: nowrap;">
-        <a class="roll-attack"><i class="fas fa-dice-d20 i--m i--dark"></i></a>
-        <hr class="vsep">
-        ${show_range_array(ranges, options)}
-        <hr class="vsep">
-        ${show_damage_array(weapon.SelectedProfile.BaseDamage, options)}
+  <div class="mech-weapon-wrapper${mod_text ? "-modded" : ""}">
+    <div class="valid ${EntryType.MECH_WEAPON} 
+    ref drop-settable flexcol lancer-weapon-container macroable item"
+                  ${ref_params(cd.ref, weapon_path)}
+                  style="max-height: fit-content;">
+      <div class="lancer-header">
+        <i class="cci cci-weapon i--m i--light"> </i>
+        <span class="minor">${
+          weapon.Name
+        } // ${weapon.Size.toUpperCase()} ${weapon.SelectedProfile.WepType.toUpperCase()}</span>
+        <a class="gen-control i--light" data-action="null" data-path="${weapon_path}"><i class="fas fa-trash"></i></a>
+      </div> 
+      <div class="lancer-body">
+        <div class="flexrow" style="text-align: left; white-space: nowrap;">
+          <a class="roll-attack"><i class="fas fa-dice-d20 i--m i--dark"></i></a>
+          <hr class="vsep">
+          ${show_range_array(ranges, options)}
+          <hr class="vsep">
+          ${show_damage_array(weapon.SelectedProfile.BaseDamage, options)}
 
-        <!-- Loading toggle, if we are loading-->
-        ${inc_if(`<hr class="vsep"> ${loading}`, loading)}
-      </div>
-      
-      <div class="flexcol">
-        <span>${weapon.SelectedProfile.Description}</span>
-        ${effect}
-        ${on_attack}
-        ${on_hit}
-        ${on_crit}
-        ${compact_tag_list(profile_path + ".Tags", profile.Tags, false)}
+          <!-- Loading toggle, if we are loading-->
+          ${inc_if(`<hr class="vsep"> ${loading}`, loading)}
+        </div>
+        
+        <div class="flexcol">
+          <span>${weapon.SelectedProfile.Description}</span>
+          ${effect}
+          ${on_attack}
+          ${on_hit}
+          ${on_crit}
+          ${compact_tag_list(profile_path + ".Tags", profile.Tags, false)}
+        </div>
       </div>
     </div>
+    ${mod_text ? mod_text : ""}
   </div>`;
+}
+
+function loading_indicator(loaded: boolean,weapon_path: string): string {
+    let loading_icon = `mdi ${loaded ? "mdi-hexagon-slice-6" : "mdi-hexagon-outline"}`;
+    return `<span class="flexcol loading-wrapper"> 
+                LOADED: 
+                <a class="gen-control" data-action="set" data-action-value="(bool)${!loaded}" data-path="${weapon_path}.Loaded" data-commit-item="${weapon_path}"><i class="${loading_icon}"></i></a>
+                </span>`;
 }
 
 // A specific MM ref helper focused on displaying manufacturer info.
@@ -712,10 +744,12 @@ export function license_ref(license: License | null, level: number): string {
  *        tags    Array of TagInstances which can optionally be passed
  * @returns Activation HTML in string form
  */
- export function buildActionHTML(action: Action, options?: {full?: boolean, num?: number, tags?:TagInstance[]}): string {
+// TODO: The options are out of control
+ export function buildActionHTML(action: Action, options?: {editable?: boolean, path?: string, full?: boolean, num?: number, tags?:TagInstance[]}): string {
   let detailText: string | undefined;
   let chip: string | undefined;
   let tags: string | undefined;
+  let editor: string | undefined;
 
   // TODO--can probably do better than this
   if(options) {
@@ -746,6 +780,16 @@ export function license_ref(license: License | null, level: number): string {
       }
 
       chip = buildChipHTML(action.Activation, {icon: icon, num: options.num})
+
+      if(options.editable) {
+        if(!options.path) throw Error("You're trying to edit an action without a path");
+        // If it's editable, it's deletable
+        editor = `
+        <div class="action-editor-wrapper">
+          <a class="gen-control" data-action="splice" data-path="${options.path}"><i class="fas fa-trash"></i></a>
+          <a class="action-editor fas fa-edit" data-path="${options.path}"></a>
+        </div>`
+      }
     } 
 
     if(options.tags !== undefined) {
@@ -759,9 +803,12 @@ export function license_ref(license: License | null, level: number): string {
 
   return `
   <div class="action-wrapper">
-    <span class="action-title">
-      ${action.Name ? action.Name : ""}
-    </span>
+    <div class="title-wrapper">
+      <span class="action-title">
+        ${action.Name ? action.Name : ""}
+      </span>
+      ${editor ? editor : ""}
+    </div>
     ${detailText ? detailText : ""}
     ${chip}
     ${tags ? tags : ""}
@@ -804,7 +851,7 @@ export function buildDeployableHTML(dep: Deployable, full?: boolean, num?:number
     }
   }
 
-  if(!activation) activation = ActivationType.None;
+  if(!activation) activation = ActivationType.Quick;
 
   if(num !== undefined) {
     chip = buildChipHTML(activation,{icon: ChipIcons.Deployable,num: num,isDep: true});

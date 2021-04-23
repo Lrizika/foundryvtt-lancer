@@ -18,11 +18,15 @@ import {
   FrameTrait,
   Bonus,
   SerUtil,
+  Talent,
+  Action,
 } from "machine-mind";
+import { TALENT_RANK } from "machine-mind/dist/classes/default_entries";
 import { defaults } from "machine-mind/dist/funcs";
 import { HTMLEditDialog } from "../apps/text-editor";
 import { LancerActorSheetData, LancerItemSheetData } from "../interfaces";
 import { MMEntityContext } from "../mm-util/helpers";
+import { Deployable, WeaponType } from 'machine-mind';
 
 // A shorthand for only including the first string if the second value is truthy
 export function inc_if(val: string, test: any) {
@@ -290,67 +294,80 @@ export function ext_helper_hash(
  *
  * The data getter and commit func are used to retrieve the target data, and to save it back (respectively)
  */
-export function HANDLER_activate_general_controls<
-  T extends LancerActorSheetData<any> | LancerItemSheetData<any>
+ export function HANDLER_activate_general_controls<
+ T extends LancerActorSheetData<any> | LancerItemSheetData<any>
 >(
-  html: JQuery,
-  // Retrieves the data that we will operate on
-  data_getter: () => Promise<T> | T,
-  commit_func: (data: T) => void | Promise<void>
+ html: JQuery,
+ // Retrieves the data that we will operate on
+ data_getter: () => Promise<T> | T,
+ commit_func: (data: T) => void | Promise<void>
 ) {
-  html.find(".gen-control").on("click", async (event: any) => {
-    // Get the id/action
-    event.stopPropagation();
-    const elt = event.currentTarget;
-    const path = elt.dataset.path;
-    const action = elt.dataset.action;
-    const data = await data_getter();
-    const raw_val: string = elt.dataset.actionValue ?? "";
+ html.find(".gen-control").on("click", async (event: any) => {
+   // Get the id/action
+   event.stopPropagation();
+   const elt = event.currentTarget;
+   const path = elt.dataset.path;
+   const action = elt.dataset.action;
+   const data = await data_getter();
+   const raw_val: string = elt.dataset.actionValue ?? "";
+   const item_override: string = elt.dataset.commitItem ?? "";
 
-    if (!path || !data) {
-      console.error("Gen control failed: missing path");
-    } else if (!action) {
-      console.error("Gen control failed: missing action");
-    } else if (!data) {
-      console.error("Gen control failed: data could not be retrieved");
-    }
+   if (!path || !data) {
+     console.error("Gen control failed: missing path");
+   } else if (!action) {
+     console.error("Gen control failed: missing action");
+   } else if (!data) {
+     console.error("Gen control failed: data could not be retrieved");
+   }
 
-    if (action == "delete") {
-      // Find and delete the item at that path
-      let item = resolve_dotpath(data, path) as RegEntry<any>;
-      return item.destroy_entry();
-    } else if (action == "splice") {
-      // Splice out the value at path dest, then writeback
-      array_path_edit(data, path, null, "delete");
-    } else if (action == "null") {
-      // Null out the target space
-      gentle_merge(data, { [path]: null });
-    } else if (["set", "append", "insert"].includes(action)) {
-      let result = await parse_control_val(raw_val, data.mm);
-      let success = result[0];
-      let value = result[1];
-      if (!success) {
-        console.warn(`Bad data-action-value: ${value}`);
-        return; // Bad arg - no effect
-      }
+   if (action == "delete") {
+     // Find and delete the item at that path
+     let item = resolve_dotpath(data, path) as RegEntry<any>;
+     return item.destroy_entry();
+   } else if (action == "splice") {
+     // Splice out the value at path dest, then writeback
+     array_path_edit(data, path, null, "delete");
+   } else if (action == "null") {
+     // Null out the target space
+     gentle_merge(data, { [path]: null });
+   } else if (["set", "append", "insert"].includes(action)) {
+     let result = await parse_control_val(raw_val, data.mm);
+     let success = result[0];
+     let value = result[1];
+     if (!success) {
+       console.warn(`Bad data-action-value: ${value}`);
+       return; // Bad arg - no effect
+     }
 
-      // Multiplex with our parsed actions
-      switch (action) {
-        case "set":
-          gentle_merge(data, { [path]: value });
-          break;
-        case "append":
-          array_path_edit(data, path + "[-1]", value, "insert");
-          break;
-        case "insert":
-          array_path_edit(data, path, value, "insert");
-          break;
-      }
-    }
+     // Multiplex with our parsed actions
+     switch (action) {
+       case "set":
+         gentle_merge(data, { [path]: value });
+         break;
+       case "append":
+         array_path_edit(data, path + "[-1]", value, "insert");
+         break;
+       case "insert":
+         array_path_edit(data, path, value, "insert");
+         break;
+     }
+   } else {
+     console.error("Unhandled action: " + action);
+   }
 
-    // Handle writing back our changes
-    await commit_func(data);
-  });
+   // Handle writing back our changes
+   if (item_override) {
+     let item = resolve_dotpath(data, item_override);
+     try {
+       await item.writeback();
+     } catch (e) {
+       console.error(`Failed to writeback item at path "${item_override}"`);
+       return;
+     }
+   } else {
+     await commit_func(data);
+   }
+ });
 }
 
 // Used by above to figure out how to handle "set"/"append" args
@@ -402,6 +419,8 @@ async function control_structs(key: string, ctx: MMEntityContext<any>): Promise<
   switch (key) {
     case "empty_array":
       return [true, []];
+    case "string":
+      return [true, ""];
     case "npc_stat_array":
       return [true, [0, 0, 0]];
     case "frame_trait":
@@ -409,6 +428,8 @@ async function control_structs(key: string, ctx: MMEntityContext<any>): Promise<
       return [true, await trait.ready()];
     case "bonus":
       return [true, new Bonus(funcs.defaults.BONUS())];
+    case "action":
+      return [true, new Action(funcs.defaults.ACTION())]
     case "mount_type":
       return [true, MountType.Main];
     case "range":
@@ -436,6 +457,12 @@ async function control_structs(key: string, ctx: MMEntityContext<any>): Promise<
     case "weapon_profile":
       let profile = new MechWeaponProfile(ctx.reg, ctx.ctx, funcs.defaults.WEAPON_PROFILE());
       return [true, await profile.ready()];
+    case "talent_rank":
+      return [true, funcs.defaults.TALENT_RANK()];
+    case "WeaponSize":
+      return [true,WeaponSize.Aux];
+    case "WeaponType":
+      return [true,WeaponType.CQB];
   }
 
   // Didn't find a match
@@ -492,7 +519,7 @@ export function std_num_input(path: string, options: HelperOptions) {
 // Shows a [X] / Y display, where X is an editable value and Y is some total (e.x. max hp)
 export function std_x_of_y(x_path: string, x: number, y: number, add_classes: string = "") {
   return ` <div class="flexrow flex-center no-wrap ${add_classes}">
-              <input class="lancer-stat lancer-invisible-input" type="number" name="${x_path}" value="${x}" data-dtype="Number" style="justify-content: left"/>
+              <input class="lancer-stat lancer-stat" type="number" name="${x_path}" value="${x}" data-dtype="Number" style="justify-content: left"/>
               <span>/</span>
               <span class="lancer-stat" style="justify-content: left"> ${y}</span>
             </div>`;
@@ -637,4 +664,15 @@ export function large_textbox_card(title: string, text_path: string, helper: Hel
     </div>
   </div>
   `;
+}
+
+
+// Reads the specified form to a JSON object, including unchecked inputs
+// Wraps the build in foundry method
+export function read_form(
+  form_element: HTMLFormElement
+): { [key: string]: string | number | boolean } {
+  // @ts-ignore The typings don't yet include this utility class
+  let form_data = new FormDataExtended(form_element);
+  return form_data.toObject();
 }

@@ -8,6 +8,7 @@
  */
 
 // Import TypeScript modules
+const marked = require("marked");
 import { LANCER, STATUSES, WELCOME } from "./module/config";
 import { LancerGame } from "./module/lancer-game";
 import { LancerActor, lancerActorInit } from "./module/actor/lancer-actor";
@@ -37,7 +38,7 @@ import * as macros from "./module/macros";
 
 // Import node modules
 import compareVersions = require("compare-versions");
-import { NpcFeatureType, EntryType, Manufacturer, Bonus } from "machine-mind";
+import { NpcFeatureType, EntryType, Manufacturer, Bonus, WeaponSize, Action } from 'machine-mind';
 import {
   resolve_dotpath,
   resolve_helper_dotpath,
@@ -91,6 +92,21 @@ import {
   editable_mm_ref_list_item_native,
 } from "./module/helpers/refs";
 import { mech_loadout, pilot_slot, frame_refview } from './module/helpers/loadout';
+import {
+  item_edit_arrayed_actions,
+  item_edit_arrayed_damage,
+  item_edit_arrayed_range,
+  item_edit_arrayed_bonuses,
+  item_edit_arrayed_counters,
+  item_edit_arrayed_deployables,
+  item_edit_arrayed_synergies,
+  item_edit_arrayed_enum,
+  item_edit_effect,
+  item_edit_license,
+  item_edit_sp,
+  item_edit_uses,
+  item_edit_arrayed_integrated,
+} from "./module/helpers/item-editors";
 
 const lp = LANCER.log_prefix;
 
@@ -183,6 +199,10 @@ Hooks.once("init", async function () {
       EntryType.NPC_FEATURE,
       EntryType.MANUFACTURER,
       EntryType.QUIRK,
+      EntryType.ENVIRONMENT,
+      EntryType.FACTION,
+      EntryType.ORGANIZATION,
+      EntryType.SITREP
     ],
     makeDefault: true,
   });
@@ -384,6 +404,27 @@ Hooks.once("init", async function () {
   Handlebars.registerHelper("act-type-sel", action_type_selector);
 
   // ------------------------------------------------------------------------
+  // Item-level helpers for editing
+  //   - Arrayed items
+  Handlebars.registerHelper("item-edit-arrayed-actions", item_edit_arrayed_actions);
+  Handlebars.registerHelper("item-edit-arrayed-damage", item_edit_arrayed_damage);
+  Handlebars.registerHelper("item-edit-arrayed-range", item_edit_arrayed_range);
+  Handlebars.registerHelper("item-edit-arrayed-enum", item_edit_arrayed_enum);
+  Handlebars.registerHelper("item-edit-arrayed-bonuses", item_edit_arrayed_bonuses);
+  Handlebars.registerHelper("item-edit-arrayed-counters", item_edit_arrayed_counters);
+  Handlebars.registerHelper("item-edit-arrayed-deployables", item_edit_arrayed_deployables);
+  Handlebars.registerHelper("item-edit-arrayed-synergies", item_edit_arrayed_synergies);
+  Handlebars.registerHelper("item-edit-arrayed-integrated", item_edit_arrayed_integrated);
+  // Generic handler for an array that can take a selectable enum
+  Handlebars.registerHelper("item-edit-arrayed-enum", item_edit_arrayed_enum);
+  //   - Standalone items
+  Handlebars.registerHelper("item-edit-effect", item_edit_effect);
+  Handlebars.registerHelper("item-edit-license", item_edit_license);
+  Handlebars.registerHelper("item-edit-sp", item_edit_sp);
+  Handlebars.registerHelper("item-edit-uses", item_edit_uses);
+
+
+  // ------------------------------------------------------------------------
   // Effects
   /*
   Handlebars.registerHelper("eff-preview", effect_preview);
@@ -437,28 +478,8 @@ Hooks.once("init", async function () {
 export const system_ready: Promise<void> = new Promise(success => {
   Hooks.once("ready", async function () {
     await versionCheck();
+    await showChangelog();
 
-    // Show welcome message if not hidden.
-    if (!game.settings.get(LANCER.sys_name, LANCER.setting_welcome)) {
-      new Dialog({
-        title: `Welcome to LANCER v${game.system.data.version}`,
-        content: WELCOME,
-        buttons: {
-          dont_show: {
-            label: "Do Not Show Again",
-            callback: async () => {
-              await game.settings.set(LANCER.sys_name, LANCER.setting_welcome, true);
-            },
-          },
-          close: {
-            label: "Close",
-          },
-        },
-        default: "Close",
-      }).render(true);
-    }
-
-    // We're ready, freddy
     success();
   });
 });
