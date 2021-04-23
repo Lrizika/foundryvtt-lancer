@@ -5,11 +5,11 @@ import { LancerActorType } from "./actor/lancer-actor";
 import { LancerItemType } from "./item/lancer-item";
 
 const ASCII = `
-╭╮╱╱╭━━━┳━╮╱╭┳━━━┳━━━┳━━━╮ 
-┃┃╱╱┃╭━╮┃┃╰╮┃┃╭━╮┃╭━━┫╭━╮┃ 
-┃┃╱╱┃┃╱┃┃╭╮╰╯┃┃╱╰┫╰━━┫╰━╯┃ 
-┃┃╱╭┫╰━╯┃┃╰╮┃┃┃╱╭┫╭━━┫╭╮╭╯ 
-┃╰━╯┃╭━╮┃┃╱┃┃┃╰━╯┃╰━━┫┃┃╰╮ 
+╭╮╱╱╭━━━┳━╮╱╭┳━━━┳━━━┳━━━╮
+┃┃╱╱┃╭━╮┃┃╰╮┃┃╭━╮┃╭━━┫╭━╮┃
+┃┃╱╱┃┃╱┃┃╭╮╰╯┃┃╱╰┫╰━━┫╰━╯┃
+┃┃╱╭┫╰━╯┃┃╰╮┃┃┃╱╭┫╭━━┫╭╮╭╯
+┃╰━╯┃╭━╮┃┃╱┃┃┃╰━╯┃╰━━┫┃┃╰╮
 ╰━━━┻╯╱╰┻╯╱╰━┻━━━┻━━━┻╯╰━╯`;
 
 let ET = EntryType;
@@ -128,22 +128,22 @@ export const STATUSES = [
 
 export function WELCOME(changelog: string): string {
   return `<div style="margin: 10px 5px">
-  <p>Welcome to Lancer on Foundry! If you haven't already, check out the project wiki for 
+  <p>Welcome to Lancer on Foundry! If you haven't already, check out the project wiki for
   <a href="https://github.com/Eranziel/foundryvtt-lancer/wiki/FAQ">FAQ</a>
   and a list of <a href="https://github.com/Eranziel/foundryvtt-lancer/wiki/Resources">recommended modules</a>, as well
   as other information about how to use the system.</p>
-  
+
   <p>In particular, if you aren't using them already we <i>strongly</i> recommend the modules
   <a href="https://foundryvtt.com/packages/hex-size-support/">"Hex Token Size Support"</a> by
-  Ourobor (even if you don't use hexes it is very useful for tweaking token art size and placement) and 
+  Ourobor (even if you don't use hexes it is very useful for tweaking token art size and placement) and
   <a href="https://foundryvtt.com/packages/lancer-initiative/">"Lancer Initiative"</a> by Bolts.</p>
-  
-  <p>You can report issues on GitHub here: 
+
+  <p>You can report issues on GitHub here:
   <a href="https://github.com/Eranziel/foundryvtt-lancer/issues">https://github.com/Eranziel/foundryvtt-lancer/issues</a></p>
-  
+
   <p><h1>Change Log:
   ${changelog}
-  
+
   <p><a href="https://github.com/Eranziel/foundryvtt-lancer/blob/master/CHANGELOG.md">Click here for the full changelog.</a></p>
   </div>
   `;
@@ -162,7 +162,7 @@ export const LANCER = {
   setting_pilot_oc_heat: "autoOCHeat",
   setting_overkill_heat: "autoOKillHeat",
   setting_auto_structure: "autoCalcStructure",
-  setting_120: "warningFor120",
+  setting_theme: "lancerUITheme",
   mech_items,
   pilot_items,
   weapon_items,
